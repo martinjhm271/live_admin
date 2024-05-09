@@ -202,11 +202,39 @@ Hooks.IndexPage = {
   },
 };
 
+let Uploaders = {}
+
+Uploaders.gcs = (entries, onViewError) => {
+  entries.forEach(async entry => {
+    let { file, meta: { url } } = entry
+
+    let xhr = new XMLHttpRequest()
+
+    onViewError(() => xhr.abort())
+
+    xhr.onload = () => [200, 204].includes(xhr.status) ? entry.progress(100) : entry.error("Something went wrong!")
+
+    xhr.onerror = (e) => entry.error(e.detail.message)
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if(e.lengthComputable){
+        let percent = Math.round((e.loaded / e.total) * 100)
+        if(percent < 100){ entry.progress(percent) }
+      }
+    })
+
+    xhr.open("PUT", url, true)
+    xhr.setRequestHeader('Content-Type', file.type)
+    xhr.send(file)
+  })
+}
+
 let csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute("content");
 let liveSocket = new LiveSocket("/live", Socket, {
   hooks: Hooks,
+  uploaders: Uploaders,
   params: { _csrf_token: csrfToken },
 });
 
